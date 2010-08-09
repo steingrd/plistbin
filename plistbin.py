@@ -17,41 +17,14 @@ def writePlist(rootObject, pathOrFile):
     writer = BinaryPropertyListWriter(rootObject, pathOrFile)
     writer.write()
 
-# TODO this inheritance hierarchy is pointless, use single class with
-# strings for symbols instead
-
 class PlistObject(object): 
-    def __init__(self, value, inline=False):
+    def __init__(self, plist_type, value, inline=False):
         self.value = value
         self.inline = inline
-
-class Dict(PlistObject):
-    def __repr__(self):
-        return 'Dict'
-
-class Boolean(PlistObject):
-    def __repr__(self):
-        return 'Boolean'
-
-class Integer(PlistObject):    
-    def __repr__(self):
-        return 'Integer'
-    
-class Array(PlistObject):
-    def __repr__(self):
-        return 'Array'
+        self.plist_type = plist_type
         
-class KeyRef(PlistObject):
     def __repr__(self):
-        return 'KeyRef'
-    
-class ObjRef(PlistObject):
-    def __repr__(self):
-        return 'ObjRef'
-
-class AsciiString(PlistObject):
-    def __repr__(self):
-        return 'AsciiString'
+        return self.plist_type
         
 def bytes_for_number(number):
     """
@@ -74,26 +47,26 @@ def bytes_for_number(number):
 
 def flatten_to_table(unknown_object, objects_table):
     if isinstance(unknown_object, bool):
-        objects_table.append(Boolean(unknown_object))
+        objects_table.append(PlistObject('Boolean', unknown_object))
     elif isinstance(unknown_object, int):
-        objects_table.append(Integer(unknown_object))    
+        objects_table.append(PlistObject('Integer', unknown_object))    
     elif isinstance(unknown_object, str):
-        objects_table.append(AsciiString(unknown_object))
+        objects_table.append(PlistObject('AsciiString', unknown_object))
     elif isinstance(unknown_object, dict):
-        objects_table.append(Dict(unknown_object))
+        objects_table.append(PlistObject('Dict', unknown_object))
         # TODO support more than 14 keys
         for key, val in unknown_object.iteritems():
-            objects_table.append(KeyRef(key))
-            objects_table.append(ObjRef(val))
+            objects_table.append(PlistObject('KeyRef', key))
+            objects_table.append(PlistObject('ObjRef', val))
         for key, val in unknown_object.iteritems():
             flatten_to_table(key, objects_table)
             flatten_to_table(val, objects_table)
     elif isinstance(unknown_object, (list, tuple)):
-        objects_table.append(Array(unknown_object))
+        objects_table.append(PlistObject('Array', unknown_object))
         if len(unknown_object) > 14:
-            objects_table.append(Integer(len(unknown_object), inline=True))
+            objects_table.append(PlistObject('Integer', len(unknown_object), inline=True))
         for obj in unknown_object:
-            objects_table.append(ObjRef(obj))
+            objects_table.append(PlistObject('ObjRef', obj))
         for obj in unknown_object:
             flatten_to_table(obj, objects_table)
 
@@ -108,7 +81,7 @@ class BinaryPropertyListWriter(object):
         self.object_table = flatten(root_object)
         
         # calculate the size of objref ints by counting objrefs
-        num_objrefs = sum( 1 for obj in self.object_table if isinstance(obj, ObjRef) )
+        num_objrefs = sum( 1 for obj in self.object_table if obj.plist_type == 'ObjRef' )
         self.objref_size = bytes_for_number(num_objrefs)
         
         self.offset_table = []
@@ -117,13 +90,13 @@ class BinaryPropertyListWriter(object):
         self.offset_count = 0
         
         self.methods = {
-            Array: self.write_array,
-            ObjRef: self.write_objref,
-            Integer: self.write_integer,
-            Boolean: self.write_boolean,
-            AsciiString: self.write_ascii_string,
-            Dict: self.write_dict,
-            KeyRef: self.write_keyref,
+            'Array': self.write_array,
+            'ObjRef': self.write_objref,
+            'Integer': self.write_integer,
+            'Boolean': self.write_boolean,
+            'AsciiString': self.write_ascii_string,
+            'Dict': self.write_dict,
+            'KeyRef': self.write_keyref,
         }
         self.initialize_structs()
         
@@ -185,7 +158,7 @@ class BinaryPropertyListWriter(object):
             marker_byte = 0x5f
             self.out.write(self.single_byte.pack(marker_byte))
             # size is written as an integer following the marker byte
-            self.write_integer(Integer(data_size, inline=True))
+            self.write_integer(PlistObject('Integer', data_size, inline=True))
         self.current_offset += 1 + data_size # 1 for the marker byte
         self.out.write(data)
         
@@ -221,7 +194,7 @@ class BinaryPropertyListWriter(object):
         
     def write_objects(self):
         for obj in self.object_table:
-            m = self.methods[type(obj)]
+            m = self.methods[obj.plist_type]
             m(obj)
         
     def write_offsets(self):
