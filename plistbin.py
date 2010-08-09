@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import struct
+import struct, plistlib
 
 # TODO
 # - dicts with more than 14 keys
 # - allow pathOrFile to be a file-like object
+# - raise TypeError for unsupported types
+# - add writePlistToString to match plistlib API
+# - implement binary plist parser (readPlist)
 
 # TODO implement support for these data types:
 # - base64 encoded data
@@ -13,13 +16,20 @@ import struct
 # - date
 # - null
 # - uid
-# - set
 
-__all__ = ['writePlist']
+__all__ = ['writePlist', 'Data']
 
 def writePlist(rootObject, pathOrFile):
     writer = BinaryPropertyListWriter(rootObject, pathOrFile)
     writer.write()
+    
+class Data(object):
+    """
+    Wrapper for binary data.
+    
+    """
+    def __init__(self, data):
+        self.data = data
 
 class PlistObject(object): 
     def __init__(self, plist_type, value, inline=False):
@@ -75,6 +85,9 @@ def flatten_to_table(unknown_object, objects_table):
             objects_table.append(PlistObject('ObjRef', obj))
         for obj in unknown_object:
             flatten_to_table(obj, objects_table)
+    # Data instances from plistlib is also supported
+    elif isinstance(unknown_object, (Data, plistlib.Data)):
+        objects_table.append(PlistObject('Data', unknown_object.data))
 
 def flatten(unknown_object):
     objects_table = []
@@ -173,8 +186,28 @@ class BinaryPropertyListWriter(object):
             # size is written as an integer following the marker byte
             self.write_integer(PlistObject('Integer', length, inline=True))
             
-        self.current_offset += 1  + len(data) # 1 byte marker
+        self.current_offset += 1 + len(data) # 1 byte marker
         self.out.write(data)
+        
+    def write_data(self, data_object):
+        length = len(data_object.value)
+        if length < 15:
+            marker_byte = 0x40 | length
+            self.out.write(self.single_byte.pack(marker_byte))
+        else:
+            marker_byte = 0x4f
+            self.out.write(self.single_byte.pack(marker_byte))
+            self.write_integer(PlistObject('Integer', length, inline=True))
+        self.object_count += 1
+        self.current_offset += 1 + length
+        self.out.write(data_object.value)
+        # TODO figure out why this backspace byte is there. here's the story:
+        # so, it turns out that the plutil utility puts a 0x08 byte at the
+        # end of all byte streams (backspace). it seems strange, but here 
+        # it is. even stranger is the fact that the offset to the offset
+        # table is not incremented. that would mean that the offset table
+        # has the wrong offset, no?
+        self.out.write('\x08')
         
     def write_integer(self, integer_object):
         bytes_required = bytes_for_number(integer_object.value)
@@ -216,6 +249,7 @@ class BinaryPropertyListWriter(object):
             'UnicodeString': self.write_unicode_string,
             'Dict': self.write_dict,
             'KeyRef': self.write_keyref,
+            'Data': self.write_data
         }
         
         for obj in self.object_table:

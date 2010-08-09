@@ -28,6 +28,10 @@ def test_unicode_string():
     f = plistbin.flatten(u'Æøå')
     assert_equals('[UnicodeString]', repr(f))
 
+def test_flatten_data_objects():
+    f = plistbin.flatten(plistbin.Data('Some data'))
+    assert_equals('[Data]', repr(f))
+
 def test_flatten_lists_and_tuples_to_array():
     # simple list of primitives
     f = plistbin.flatten([10, 11, 12])
