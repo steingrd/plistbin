@@ -32,6 +32,10 @@ def test_flatten_lists_and_tuples_to_array():
     f = plistbin.flatten([(1,), (4,)])
     assert_equals('[Array, ObjRef, ObjRef, Array, ObjRef, Integer, Array, ObjRef, Integer]', repr(f))
 
+def test_flatten_dicts_to_keyrefs_and_objrefs():
+    f = plistbin.flatten(dict(one=1,two=2))
+    assert_equals('[Dict, KeyRef, ObjRef, KeyRef, ObjRef, AsciiString, Integer, AsciiString, Integer]', repr(f))
+
 def test_generate_plist_files_and_match_pregenerated():
     files = find_xml_files_and_binary_files()
     for t in files:

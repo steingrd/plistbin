@@ -17,10 +17,17 @@ def writePlist(rootObject, pathOrFile):
     writer = BinaryPropertyListWriter(rootObject, pathOrFile)
     writer.write()
 
+# TODO this inheritance hierarchy is pointless, use single class with
+# strings for symbols instead
+
 class PlistObject(object): 
     def __init__(self, value, inline=False):
         self.value = value
         self.inline = inline
+
+class Dict(PlistObject):
+    def __repr__(self):
+        return 'Dict'
 
 class Boolean(PlistObject):
     def __repr__(self):
@@ -33,6 +40,10 @@ class Integer(PlistObject):
 class Array(PlistObject):
     def __repr__(self):
         return 'Array'
+        
+class KeyRef(PlistObject):
+    def __repr__(self):
+        return 'KeyRef'
     
 class ObjRef(PlistObject):
     def __repr__(self):
@@ -68,6 +79,15 @@ def flatten_to_table(unknown_object, objects_table):
         objects_table.append(Integer(unknown_object))    
     elif isinstance(unknown_object, str):
         objects_table.append(AsciiString(unknown_object))
+    elif isinstance(unknown_object, dict):
+        objects_table.append(Dict(unknown_object))
+        # TODO support more than 14 keys
+        for key, val in unknown_object.iteritems():
+            objects_table.append(KeyRef(key))
+            objects_table.append(ObjRef(val))
+        for key, val in unknown_object.iteritems():
+            flatten_to_table(key, objects_table)
+            flatten_to_table(val, objects_table)
     elif isinstance(unknown_object, (list, tuple)):
         objects_table.append(Array(unknown_object))
         if len(unknown_object) > 14:
@@ -102,6 +122,8 @@ class BinaryPropertyListWriter(object):
             Integer: self.write_integer,
             Boolean: self.write_boolean,
             AsciiString: self.write_ascii_string,
+            Dict: self.write_dict,
+            KeyRef: self.write_keyref,
         }
         self.initialize_structs()
         
@@ -125,6 +147,22 @@ class BinaryPropertyListWriter(object):
         # values. as each objref is written, the counter is incremented.
         self.offset_count = self.object_count
         self.offset_table.append(self.current_offset)
+        self.current_offset += 1
+        
+    def write_dict(self, dict_object):
+        # TODO check length and write correct marker
+        marker_byte = 0xd0 | len(dict_object.value)
+        
+        self.out.write(self.single_byte.pack(marker_byte))
+        self.object_count += 1
+        self.offset_count = self.object_count
+        self.offset_table.append(self.current_offset)
+        self.current_offset += 1
+        
+    def write_keyref(self, keyref_object):
+        s = self.struct_for_byte_size[self.objref_size]
+        self.out.write(s.pack(self.offset_count))
+        self.offset_count += 1
         self.current_offset += 1
         
     def write_objref(self, objref_object):
