@@ -24,6 +24,10 @@ def test_bytecode_string():
     assert_equals('[AsciiString]', repr(f))
     assert_equals('True', f[0].value)
 
+def test_unicode_string():
+    f = plistbin.flatten(u'Æøå')
+    assert_equals('[UnicodeString]', repr(f))
+
 def test_flatten_lists_and_tuples_to_array():
     # simple list of primitives
     f = plistbin.flatten([10, 11, 12])

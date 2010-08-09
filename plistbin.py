@@ -3,6 +3,9 @@
 
 import struct
 
+# TODO
+# - dicts with more than 14 keys
+
 # TODO implement support for these data types:
 # - unicode strings
 # - base64 encoded data
@@ -10,7 +13,6 @@ import struct
 # - date
 # - null
 # - uid
-# - dict
 # - set
 
 def writePlist(rootObject, pathOrFile):
@@ -52,6 +54,8 @@ def flatten_to_table(unknown_object, objects_table):
         objects_table.append(PlistObject('Integer', unknown_object))    
     elif isinstance(unknown_object, str):
         objects_table.append(PlistObject('AsciiString', unknown_object))
+    elif isinstance(unknown_object, unicode):
+        objects_table.append(PlistObject('UnicodeString', unknown_object))
     elif isinstance(unknown_object, dict):
         objects_table.append(PlistObject('Dict', unknown_object))
         # TODO support more than 14 keys
@@ -95,6 +99,7 @@ class BinaryPropertyListWriter(object):
             'Integer': self.write_integer,
             'Boolean': self.write_boolean,
             'AsciiString': self.write_ascii_string,
+            'UnicodeString': self.write_unicode_string,
             'Dict': self.write_dict,
             'KeyRef': self.write_keyref,
         }
@@ -159,7 +164,27 @@ class BinaryPropertyListWriter(object):
             self.out.write(self.single_byte.pack(marker_byte))
             # size is written as an integer following the marker byte
             self.write_integer(PlistObject('Integer', data_size, inline=True))
+            
         self.current_offset += 1 + data_size # 1 for the marker byte
+        self.out.write(data)
+        
+    def write_unicode_string(self, unicode_string_object):
+        data = unicode_string_object.value.encode('utf_16_be')
+        length = len(unicode_string_object.value)
+        
+        self.offset_table.append(self.current_offset)
+        self.object_count += 1
+        
+        if length < 15:
+            marker_byte = 0x60 | length
+            self.out.write(self.single_byte.pack(marker_byte))
+        else:
+            marker_byte = 0x6f
+            self.out.write(self.single_byte.pack(marker_byte))
+            # size is written as an integer following the marker byte
+            self.write_integer(PlistObject('Integer', length, inline=True))
+            
+        self.current_offset += 1  + len(data) # 1 byte marker
         self.out.write(data)
         
     def write_integer(self, integer_object):
