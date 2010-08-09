@@ -7,7 +7,6 @@ import struct
 # - dicts with more than 14 keys
 
 # TODO implement support for these data types:
-# - unicode strings
 # - base64 encoded data
 # - real
 # - date
@@ -84,8 +83,8 @@ class BinaryPropertyListWriter(object):
         self.out = file(path_or_file, 'wb')
         self.object_table = flatten(root_object)
         
-        # calculate the size of objref ints by counting objrefs
-        num_objrefs = sum( 1 for obj in self.object_table if obj.plist_type == 'ObjRef' )
+        # calculate the size of objref ints by counting objrefs and keyrefs
+        num_objrefs = sum( 1 for obj in self.object_table if obj.plist_type.endswith('Ref') )
         self.objref_size = bytes_for_number(num_objrefs)
         
         self.offset_table = []
@@ -103,9 +102,7 @@ class BinaryPropertyListWriter(object):
             'Dict': self.write_dict,
             'KeyRef': self.write_keyref,
         }
-        self.initialize_structs()
-        
-    def initialize_structs(self):
+
         self.struct_for_byte_size = {
             1: struct.Struct('>B'),
             2: struct.Struct('>H'),
@@ -228,15 +225,15 @@ class BinaryPropertyListWriter(object):
             self.out.write(s.pack(offset))
     
     def write_trailer(self):
-        trailer = struct.Struct('>6BBBQQQ')
+        trailer = struct.Struct('>6xBBQQQ')
         offset_int_size = bytes_for_number(self.current_offset)
         values = (
-            0, 0, 0, 0, 0, 0,        # 6 unused bytes
-            offset_int_size,         # 1 byte offset int size
-            self.objref_size,        # 1 byte objref int size
-            self.object_count,       # 8 byte object count
-            0,                       # 8 byte top object offset (always 0 in this implementation)
-            self.current_offset,     # 8 byte offset table offset
+            # trailer starts with 6 unused bytes
+            offset_int_size,     # 1 byte offset int size
+            self.objref_size,    # 1 byte objref int size
+            self.object_count,   # 8 byte object count
+            0,                   # 8 byte top object offset (always 0 in this implementation)
+            self.current_offset, # 8 byte offset table offset
         )
         self.out.write(trailer.pack(*values))
 
