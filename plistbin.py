@@ -91,17 +91,6 @@ class BinaryPropertyListWriter(object):
         self.current_offset = 0
         self.object_count = 0
         self.offset_count = 0
-        
-        self.methods = {
-            'Array': self.write_array,
-            'ObjRef': self.write_objref,
-            'Integer': self.write_integer,
-            'Boolean': self.write_boolean,
-            'AsciiString': self.write_ascii_string,
-            'UnicodeString': self.write_unicode_string,
-            'Dict': self.write_dict,
-            'KeyRef': self.write_keyref,
-        }
 
         self.struct_for_byte_size = {
             1: struct.Struct('>B'),
@@ -215,8 +204,19 @@ class BinaryPropertyListWriter(object):
         self.current_offset += 8
         
     def write_objects(self):
+        methods = {
+            'Array': self.write_array,
+            'ObjRef': self.write_objref,
+            'Integer': self.write_integer,
+            'Boolean': self.write_boolean,
+            'AsciiString': self.write_ascii_string,
+            'UnicodeString': self.write_unicode_string,
+            'Dict': self.write_dict,
+            'KeyRef': self.write_keyref,
+        }
+        
         for obj in self.object_table:
-            m = self.methods[obj.plist_type]
+            m = methods[obj.plist_type]
             m(obj)
         
     def write_offsets(self):
