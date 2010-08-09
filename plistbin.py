@@ -5,6 +5,7 @@ import struct
 
 # TODO
 # - dicts with more than 14 keys
+# - allow pathOrFile to be a file-like object
 
 # TODO implement support for these data types:
 # - base64 encoded data
@@ -13,6 +14,8 @@ import struct
 # - null
 # - uid
 # - set
+
+__all__ = ['writePlist']
 
 def writePlist(rootObject, pathOrFile):
     writer = BinaryPropertyListWriter(rootObject, pathOrFile)
