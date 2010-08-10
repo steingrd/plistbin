@@ -9,9 +9,9 @@ import struct, plistlib
 # - raise TypeError for unsupported types
 # - add writePlistToString to match plistlib API
 # - implement binary plist parser (readPlist)
+# - support >8 byte integers
 
 # TODO implement support for these data types:
-# - base64 encoded data
 # - real
 # - date
 # - null
@@ -24,10 +24,7 @@ def writePlist(rootObject, pathOrFile):
     writer.write()
     
 class Data(object):
-    """
-    Wrapper for binary data.
-    
-    """
+    """ Wrapper for binary data. """
     def __init__(self, data):
         self.data = data
 
@@ -64,6 +61,8 @@ def flatten_to_table(unknown_object, objects_table):
         objects_table.append(PlistObject('Boolean', unknown_object))
     elif isinstance(unknown_object, int):
         objects_table.append(PlistObject('Integer', unknown_object))    
+    elif isinstance(unknown_object, float):
+        objects_table.append(PlistObject('Real', unknown_object))    
     elif isinstance(unknown_object, str):
         objects_table.append(PlistObject('AsciiString', unknown_object))
     elif isinstance(unknown_object, unicode):
@@ -225,6 +224,13 @@ class BinaryPropertyListWriter(object):
         s = self.struct_for_byte_size[bytes_required]
         self.out.write(s.pack(integer))
         
+    def write_real(self, real_object):
+        self.out.write('\x23')
+        self.out.write(struct.pack('>d', real_object.value))
+        self.offset_table.append(self.current_offset)
+        self.current_offset += 9
+        self.object_count += 1
+        
     def write_boolean(self, boolean_object):
         if boolean_object.value:
             byte = '\x09'
@@ -249,7 +255,8 @@ class BinaryPropertyListWriter(object):
             'UnicodeString': self.write_unicode_string,
             'Dict': self.write_dict,
             'KeyRef': self.write_keyref,
-            'Data': self.write_data
+            'Data': self.write_data,
+            'Real': self.write_real,
         }
         
         for obj in self.object_table:

@@ -9,10 +9,14 @@ from nose.tools import *
 
 import plistbin
 
-def test_flatten_integer():
+def test_flatten_number_objects():
+    # an int..
     f = plistbin.flatten(42)
     assert_equals('[Integer]', repr(f))
-    assert_equals(42, f[0].value)
+
+    # .. and a float
+    f = plistbin.flatten(42.0005)
+    assert_equals('[Real]', repr(f))
 
 def test_flatten_boolean():
     f = plistbin.flatten(True)
