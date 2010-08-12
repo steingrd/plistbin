@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import struct, plistlib
+import struct, plistlib, datetime
 
 # TODO
 # - dicts with more than 14 keys
@@ -12,9 +12,6 @@ import struct, plistlib
 # - support >8 byte integers
 
 # TODO implement support for these data types:
-# - real
-# - date
-# - null
 # - uid
 
 __all__ = ['writePlist', 'Data']
@@ -67,6 +64,8 @@ def flatten_to_table(unknown_object, objects_table):
         objects_table.append(PlistObject('AsciiString', unknown_object))
     elif isinstance(unknown_object, unicode):
         objects_table.append(PlistObject('UnicodeString', unknown_object))
+    elif isinstance(unknown_object, datetime.datetime):
+        objects_table.append(PlistObject('Date', unknown_object))
     elif isinstance(unknown_object, dict):
         objects_table.append(PlistObject('Dict', unknown_object))
         # TODO support more than 14 keys
@@ -231,6 +230,19 @@ class BinaryPropertyListWriter(object):
         self.current_offset += 9
         self.object_count += 1
         
+    def write_datetime(self, datetime_object):
+        self.out.write('\x33')
+        # compute the value of the double that stores the time. Cocoa uses
+        # 2001-01-01T00:00:00 as epoch, negative numbers means before epoch.
+        epoch = datetime.datetime(2001, 1, 1, 0, 0, 0, 0)
+        delta = datetime_object.value - epoch
+        seconds = (delta.days * 86400) + delta.seconds
+
+        self.out.write(struct.pack('>d', seconds))
+        self.offset_table.append(self.current_offset)
+        self.current_offset += 9
+        self.object_count += 1
+        
     def write_boolean(self, boolean_object):
         if boolean_object.value:
             byte = '\x09'
@@ -257,6 +269,7 @@ class BinaryPropertyListWriter(object):
             'KeyRef': self.write_keyref,
             'Data': self.write_data,
             'Real': self.write_real,
+            'Date': self.write_datetime
         }
         
         for obj in self.object_table:

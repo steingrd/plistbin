@@ -35,6 +35,11 @@ def test_unicode_string():
 def test_flatten_data_objects():
     f = plistbin.flatten(plistbin.Data('Some data'))
     assert_equals('[Data]', repr(f))
+    
+def test_flatten_datetime_objects():
+    import datetime
+    f = plistbin.flatten(datetime.datetime.now())
+    assert_equals('[Date]', repr(f))
 
 def test_flatten_lists_and_tuples_to_array():
     # simple list of primitives
